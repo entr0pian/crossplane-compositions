@@ -10,7 +10,7 @@ spec:
   pipeline:
     - step: create-repository
       functionRef:
-        name: function-patch-and-transform
+        name: crossplane-contrib-function-patch-and-transform
       input:
         apiVersion: pt.fn.crossplane.io/v1beta1
         kind: Resources
@@ -24,11 +24,15 @@ spec:
                   visibility: private
                   autoInit: true
                 providerConfigRef:
+                  kind: ClusterProviderConfig
                   name: default
             patches:
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.repoName
                 toFieldPath: metadata.name
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.repoName
+                toFieldPath: spec.forProvider.name
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.visibility
                 toFieldPath: spec.forProvider.visibility
