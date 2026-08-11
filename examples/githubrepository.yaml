@@ -1,0 +1,10 @@
+apiVersion: repo.taskapp.io/v1alpha1
+kind: GitHubRepository
+metadata:
+  name: example-repo
+  namespace: default
+spec:
+  repoName: example-repo
+  visibility: private
+  description: Created by the crossplane-compositions GitHubRepository composition.
+  autoInit: true

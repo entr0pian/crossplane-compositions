@@ -1,0 +1,43 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: githubrepositories.repo.taskapp.io
+spec:
+  compositeTypeRef:
+    apiVersion: repo.taskapp.io/v1alpha1
+    kind: GitHubRepository
+  mode: Pipeline
+  pipeline:
+    - step: create-repository
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          - name: repository
+            base:
+              apiVersion: repo.github.m.upbound.io/v1alpha1
+              kind: Repository
+              spec:
+                forProvider:
+                  visibility: private
+                  autoInit: true
+                providerConfigRef:
+                  name: default
+            patches:
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.repoName
+                toFieldPath: metadata.name
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.visibility
+                toFieldPath: spec.forProvider.visibility
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.description
+                toFieldPath: spec.forProvider.description
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.autoInit
+                toFieldPath: spec.forProvider.autoInit
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.htmlUrl
+                toFieldPath: status.repoURL

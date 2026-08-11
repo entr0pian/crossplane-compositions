@@ -1,0 +1,16 @@
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: crossplane-compositions
+spec:
+  crossplane:
+    version: ">=v2.3.0"
+  dependsOn:
+    - apiVersion: pkg.crossplane.io/v1
+      kind: Provider
+      package: xpkg.upbound.io/crossplane-contrib/provider-upjet-github
+      version: ">=v0.19.1"
+    - apiVersion: pkg.crossplane.io/v1
+      kind: Function
+      package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform
+      version: ">=v0.10.4"

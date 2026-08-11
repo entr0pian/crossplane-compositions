@@ -1,0 +1,41 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: githubrepositories.repo.taskapp.io
+spec:
+  scope: Namespaced
+  group: repo.taskapp.io
+  names:
+    kind: GitHubRepository
+    plural: githubrepositories
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                repoName:
+                  type: string
+                  description: Name of the GitHub repository to create.
+                visibility:
+                  type: string
+                  enum: [public, private, internal]
+                  default: private
+                description:
+                  type: string
+                autoInit:
+                  type: boolean
+                  default: true
+              required:
+                - repoName
+            status:
+              type: object
+              properties:
+                repoURL:
+                  type: string
+                  description: HTML URL of the created repository, promoted from the managed resource.
