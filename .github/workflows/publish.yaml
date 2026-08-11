@@ -26,7 +26,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build package
-        run: ./crossplane xpkg build --package-root=. --examples-root=examples --package-file=crossplane-compositions.xpkg --ignore=".github/**,deploy/**"
+        run: ./crossplane xpkg build --package-root=. --examples-root=examples --package-file=crossplane-compositions.xpkg --ignore=".github/workflows/publish.yaml,deploy/configuration.yaml"
 
       - name: Push package (sha)
         run: ./crossplane xpkg push ghcr.io/entr0pian/crossplane-compositions:${{ github.sha }} --package-files=crossplane-compositions.xpkg

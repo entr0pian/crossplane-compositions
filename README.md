@@ -33,7 +33,7 @@ provider being installed — it doesn't carry or apply any credentials itself.
 ## Building locally
 
 ```
-crossplane xpkg build --package-root=. --examples-root=examples --package-file=crossplane-compositions.xpkg --ignore=".github/**,deploy/**"
+crossplane xpkg build --package-root=. --examples-root=examples --package-file=crossplane-compositions.xpkg --ignore=".github/workflows/publish.yaml,deploy/configuration.yaml"
 ```
 
 CI pushes every `main` commit to `ghcr.io/entr0pian/crossplane-compositions:<sha>` and to
