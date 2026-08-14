@@ -1,0 +1,29 @@
+name: validate
+
+on:
+  pull_request:
+    paths:
+      - crossplane.yaml
+      - apis/**
+      - charts/configuration-installer/**
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install crossplane CLI
+        run: curl -sL https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh | sh
+
+      - name: Build package
+        run: ./crossplane xpkg build --package-root=. --examples-root=examples --package-file=/tmp/validate.xpkg --ignore="charts/configuration-installer/Chart.yaml,charts/configuration-installer/values.yaml,charts/configuration-installer/templates/configuration.yaml,.github/workflows/validate.yaml,.github/workflows/release.yaml"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint configuration-installer chart
+        run: helm lint charts/configuration-installer

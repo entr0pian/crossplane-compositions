@@ -1,0 +1,35 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install crossplane CLI
+        run: curl -sL https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh | sh
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build package
+        run: ./crossplane xpkg build --package-root=. --examples-root=examples --package-file=crossplane-compositions.xpkg --ignore="charts/configuration-installer/Chart.yaml,charts/configuration-installer/values.yaml,charts/configuration-installer/templates/configuration.yaml,.github/workflows/validate.yaml,.github/workflows/release.yaml"
+
+      - name: Push package (release version)
+        run: ./crossplane xpkg push ghcr.io/entr0pian/crossplane-compositions:${{ github.ref_name }} --package-files=crossplane-compositions.xpkg
+
+      - name: Push package (latest alias)
+        run: ./crossplane xpkg push ghcr.io/entr0pian/crossplane-compositions:latest --package-files=crossplane-compositions.xpkg

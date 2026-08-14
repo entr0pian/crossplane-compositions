@@ -1,0 +1,7 @@
+name: ""
+
+package:
+  repository: ""
+  version: ""
+
+pullPolicy: IfNotPresent

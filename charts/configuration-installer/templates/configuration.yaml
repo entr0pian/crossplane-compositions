@@ -1,0 +1,7 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Configuration
+metadata:
+  name: {{ required ".Values.name is required" .Values.name }}
+spec:
+  package: "{{ required ".Values.package.repository is required" .Values.package.repository }}:{{ required ".Values.package.version is required" .Values.package.version }}"
+  packagePullPolicy: {{ .Values.pullPolicy }}
