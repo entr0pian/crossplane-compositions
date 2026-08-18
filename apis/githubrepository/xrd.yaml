@@ -19,6 +19,22 @@ spec:
             spec:
               type: object
               properties:
+                componentRef:
+                  type: object
+                  description: >-
+                    Reference to the owning platform Component
+                    (platform.taskapp.io/v1alpha1 Component). Authoritative
+                    correlation link per PLATFORM_API_ARCHITECTURE.md — the
+                    platform.taskapp.io/component label is derived from this,
+                    not a substitute for it. This exact {componentRef:
+                    {name}} shape is the pattern every future related-resource
+                    XRD (Database, Queue, ...) should reuse.
+                  properties:
+                    name:
+                      type: string
+                      description: Name of the Component this resource belongs to.
+                  required:
+                    - name
                 repoName:
                   type: string
                   description: Name of the GitHub repository to create.
@@ -32,6 +48,7 @@ spec:
                   type: boolean
                   default: true
               required:
+                - componentRef
                 - repoName
             status:
               type: object
