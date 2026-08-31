@@ -11,10 +11,11 @@ Argo CD's role shrinks to applying one small `Configuration` CR per package; Cro
 own package manager pulls, versions, and resolves the `dependsOn` providers/functions
 declared in `crossplane.yaml`.
 
-This repo is meant to grow to hold all compositions over time. It starts with a single
-one below; the existing RDS/SQS compositions (`helm-charts/crossplane-compositions`,
-built on Crossplane 1.x cluster-scoped resources) stay where they are — disabled for now
-— until they're reworked for the namespaced-XR model and moved in here.
+This repo is meant to grow to hold all compositions over time. It holds two packages so
+far, below; the legacy SQS composition (`helm-charts/crossplane-compositions`, built on
+Crossplane 1.x cluster-scoped resources) stays where it is — disabled — until it's
+reworked for the namespaced-XR model and moved in here. The RDS composition that used to
+live there has already been reworked and moved in as `apis/database`.
 
 ## Packages
 
@@ -29,6 +30,29 @@ referencing a dedicated `crossplane-github-credentials` Secret delivered via ESO
 `taskapp/platform/crossplane-github-token` in AWS Secrets Manager (see
 `helm-charts/platform`'s `crossplaneGithub.secretPath`). This package only depends on the
 provider being installed — it doesn't carry or apply any credentials itself.
+
+### `apis/database` — `Database`
+
+Namespaced XR (`database.taskapp.io/v1alpha1 Database`) that provisions a Postgres RDS
+instance (security group, subnet group, instance, and a republished connection Secret)
+via `provider-aws-ec2`/`provider-aws-rds`, plus a `provider-kubernetes` `Object` that
+republishes the connection details into the `Database`'s own namespace.
+
+This is a new, deliberately small API — not a straight port of the legacy
+`XRDSInstance`/`RDSInstance` schema in `helm-charts/crossplane-compositions`. Callers set
+only `spec.componentRef.name`, `spec.dbName`, and an optional `spec.size`
+(`small`/`medium`/`large`, default `small`) — region, VPC, subnets, engine, and instance
+class are fixed by the composition rather than caller-settable, resolved from `size` via
+a `map` transform. See `platform-architecture/RUNTIME_DEPENDENCIES.md` for the full
+Database Connection Secret Contract this package implements:
+`status.connectionSecretRef` always points at a Secret, in the `Database`'s own
+namespace, with exactly the keys `endpoint`/`port`/`username`/`password`/`dbname` — never
+a name a consumer reconstructs itself.
+
+Provider credentials are wired up the same way as `apis/githubrepository`'s, outside this
+repo: `helm-charts/crossplane-provider-config` applies the `aws.upbound.io` and
+`kubernetes.crossplane.io` `ProviderConfig`s (gated by their own `aws.enabled` /
+`kubernetes.enabled` toggles).
 
 ## Delivery model
 

@@ -11,6 +11,18 @@ spec:
       package: xpkg.upbound.io/crossplane-contrib/provider-upjet-github
       version: ">=v0.19.1"
     - apiVersion: pkg.crossplane.io/v1
+      kind: Provider
+      package: xpkg.upbound.io/upbound/provider-aws-ec2
+      version: ">=v1.0.0"
+    - apiVersion: pkg.crossplane.io/v1
+      kind: Provider
+      package: xpkg.upbound.io/upbound/provider-aws-rds
+      version: ">=v1.0.0"
+    - apiVersion: pkg.crossplane.io/v1
+      kind: Provider
+      package: xpkg.upbound.io/crossplane-contrib/provider-kubernetes
+      version: ">=v0.15.0"
+    - apiVersion: pkg.crossplane.io/v1
       kind: Function
       package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform
       version: ">=v0.10.4"

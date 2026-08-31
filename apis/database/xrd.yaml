@@ -1,0 +1,70 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: databases.database.taskapp.io
+spec:
+  scope: Namespaced
+  group: database.taskapp.io
+  names:
+    kind: Database
+    plural: databases
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                componentRef:
+                  type: object
+                  description: >-
+                    Reference to the owning platform Component
+                    (platform.taskapp.io/v1alpha1 Component). Authoritative
+                    correlation link per PLATFORM_API_ARCHITECTURE.md — the
+                    platform.taskapp.io/component label is derived from this,
+                    not a substitute for it. This exact {componentRef:
+                    {name}} shape reuses the pattern established by
+                    apis/githubrepository.
+                  properties:
+                    name:
+                      type: string
+                      description: Name of the Component this resource belongs to.
+                  required:
+                    - name
+                dbName:
+                  type: string
+                  description: Name of the database/schema to create.
+                size:
+                  type: string
+                  description: >-
+                    Sizing tier. Resolves internally to an RDS instance
+                    class and allocated storage — not caller-settable
+                    directly, so the composition can change what each tier
+                    means without a schema change. Region, VPC, and subnets
+                    are fixed by the composition, not exposed here.
+                  enum: [small, medium, large]
+                  default: small
+              required:
+                - componentRef
+                - dbName
+            status:
+              type: object
+              properties:
+                connectionSecretRef:
+                  type: object
+                  description: >-
+                    Pointer to the Secret carrying this database's
+                    connection details, per the Database Connection Secret
+                    Contract in RUNTIME_DEPENDENCIES.md. The referenced
+                    Secret always lives in this Database's own namespace
+                    and carries exactly the keys: endpoint, port,
+                    username, password, dbname.
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
