@@ -1,9 +1,9 @@
 apiVersion: database.taskapp.io/v1alpha1
 kind: Database
 metadata:
-  name: payments-db
+  name: checkout-db
   namespace: default
 spec:
   componentRef:
-    name: payments
-  dbName: paymentsdb
+    name: checkout
+  dbName: checkoutdb
