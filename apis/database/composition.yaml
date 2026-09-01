@@ -97,7 +97,6 @@ spec:
                   skipFinalSnapshot: true
                   autoGeneratePassword: true
                   passwordSecretRef:
-                    namespace: default
                     name: placeholder
                     key: password
                   dbSubnetGroupNameSelector:
