@@ -57,14 +57,67 @@ spec:
                 connectionSecretRef:
                   type: object
                   description: >-
-                    Pointer to the Secret carrying this database's
-                    connection details, per the Database Connection Secret
-                    Contract in RUNTIME_DEPENDENCIES.md. The referenced
-                    Secret always lives in this Database's own namespace
-                    and carries exactly the keys: endpoint, port,
-                    username, password, dbname.
+                    Internal control-plane detail — points to the local
+                    connection Secret this composition generates in the
+                    Database's own (management-cluster) namespace, per the
+                    Database Connection Secret Contract in
+                    RUNTIME_DEPENDENCIES.md. Cross-cluster consumers (e.g.
+                    the Release controller) must resolve bindings through
+                    `exports` instead, per SERVICE_BINDINGS.md — that local
+                    Secret cannot be consumed from a workload cluster.
                   properties:
                     name:
                       type: string
                     namespace:
                       type: string
+                exports:
+                  type: array
+                  description: >-
+                    Public cross-cluster consumption contract, per
+                    SERVICE_BINDINGS.md. Each entry advertises where one
+                    aspect of this Database has been published for
+                    workload clusters to pick up — consumers resolve
+                    bindings through this field only, never through
+                    connectionSecretRef or the local Secret it names.
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: >-
+                          Logical export name. Always "connection" for
+                          Database v1.
+                      type:
+                        type: string
+                        description: >-
+                          Export payload kind. Always "Secret" for this
+                          implementation.
+                      location:
+                        type: object
+                        description: Where the export was published.
+                        properties:
+                          provider:
+                            type: string
+                            description: >-
+                              Remote store provider. Always
+                              "AWSSecretsManager" for this implementation.
+                          key:
+                            type: string
+                            description: >-
+                              Exact remote AWS Secrets Manager path
+                              holding the connection bundle, in the form
+                              /bindings/<namespace>/databases/<name>.
+                        required:
+                          - provider
+                          - key
+                      ready:
+                        type: boolean
+                        description: >-
+                          True only once this export has actually been
+                          published successfully — never true merely
+                          because the underlying infrastructure is ready.
+                    required:
+                      - name
+                      - type
+                      - location
+                      - ready

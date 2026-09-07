@@ -273,3 +273,210 @@ spec:
               - type: ToCompositeFieldPath
                 fromFieldPath: spec.forProvider.manifest.metadata.namespace
                 toFieldPath: status.connectionSecretRef.namespace
+
+          # push-secret publishes the local connection-secret (above) into
+          # AWS Secrets Manager via ESO, per SERVICE_BINDINGS.md — the local
+          # Secret lives only in this (management-cluster) namespace and
+          # cannot be consumed by a workload cluster directly. Wrapped in a
+          # provider-kubernetes Object, like connection-secret itself,
+          # since PushSecret (external-secrets.io) isn't a Crossplane
+          # managed resource this composition can compose natively.
+          - name: push-secret
+            base:
+              apiVersion: kubernetes.m.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                providerConfigRef:
+                  kind: ClusterProviderConfig
+                  name: default
+                forProvider:
+                  manifest:
+                    apiVersion: external-secrets.io/v1alpha1
+                    kind: PushSecret
+                    metadata:
+                      namespace: placeholder
+                      name: placeholder
+                    spec:
+                      refreshInterval: 1h
+                      deletionPolicy: None
+                      updatePolicy: Replace
+                      secretStoreRefs:
+                        - name: aws-secrets-manager
+                          kind: ClusterSecretStore
+                      selector:
+                        secret:
+                          name: placeholder
+                      data:
+                        - match:
+                            secretKey: endpoint
+                            remoteRef:
+                              remoteKey: placeholder
+                              property: endpoint
+                        - match:
+                            secretKey: port
+                            remoteRef:
+                              remoteKey: placeholder
+                              property: port
+                        - match:
+                            secretKey: username
+                            remoteRef:
+                              remoteKey: placeholder
+                              property: username
+                        - match:
+                            secretKey: password
+                            remoteRef:
+                              remoteKey: placeholder
+                              property: password
+                        - match:
+                            secretKey: dbname
+                            remoteRef:
+                              remoteKey: placeholder
+                              property: dbname
+            # readinessChecks read the *wrapped* PushSecret's own live status
+            # (status.atProvider.manifest mirrors the full remote object,
+            # subresource status included — verified against provider-
+            # kubernetes' Object CRD) rather than the Object's own Synced/
+            # Ready conditions, which would only prove the manifest was
+            # applied, not that ESO actually published the remote secret.
+            readinessChecks:
+              - type: MatchString
+                fieldPath: status.atProvider.manifest.status.conditions[?(@.type=='Ready')].status
+                matchString: "True"
+            patches:
+              - type: PatchSet
+                patchSetName: common
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.name
+                toFieldPath: metadata.name
+                transforms:
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "%s-push-secret"
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.namespace
+                toFieldPath: spec.forProvider.manifest.metadata.namespace
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.name
+                toFieldPath: spec.forProvider.manifest.metadata.name
+                transforms:
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "%s-push-secret"
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.name
+                toFieldPath: spec.forProvider.manifest.spec.selector.secret.name
+                transforms:
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "%s-database-connection-details"
+              # Remote path is deterministic — /bindings/<namespace>/databases/<name> —
+              # per SERVICE_BINDINGS.md §3. Repeated once per data[] entry, same
+              # convention as the repeated namespace/name patches on connection-secret's
+              # spec.references above, since function-patch-and-transform patches
+              # target one field path each.
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: metadata.namespace
+                    - fromFieldPath: metadata.name
+                  strategy: string
+                  string:
+                    fmt: "/bindings/%s/databases/%s"
+                toFieldPath: spec.forProvider.manifest.spec.data[0].match.remoteRef.remoteKey
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: metadata.namespace
+                    - fromFieldPath: metadata.name
+                  strategy: string
+                  string:
+                    fmt: "/bindings/%s/databases/%s"
+                toFieldPath: spec.forProvider.manifest.spec.data[1].match.remoteRef.remoteKey
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: metadata.namespace
+                    - fromFieldPath: metadata.name
+                  strategy: string
+                  string:
+                    fmt: "/bindings/%s/databases/%s"
+                toFieldPath: spec.forProvider.manifest.spec.data[2].match.remoteRef.remoteKey
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: metadata.namespace
+                    - fromFieldPath: metadata.name
+                  strategy: string
+                  string:
+                    fmt: "/bindings/%s/databases/%s"
+                toFieldPath: spec.forProvider.manifest.spec.data[3].match.remoteRef.remoteKey
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: metadata.namespace
+                    - fromFieldPath: metadata.name
+                  strategy: string
+                  string:
+                    fmt: "/bindings/%s/databases/%s"
+                toFieldPath: spec.forProvider.manifest.spec.data[4].match.remoteRef.remoteKey
+              # Static export metadata: name/type/location.provider never vary
+              # for Database v1 (single "connection" export, always a Secret,
+              # always published to AWS Secrets Manager) — sourced from this
+              # resource's own always-present apiVersion field purely so the
+              # patch has a valid fromFieldPath; the Format transform's fixed
+              # (verb-less) fmt string discards that value and emits the
+              # literal instead. Same trick used for the ready-default below.
+              - type: ToCompositeFieldPath
+                fromFieldPath: apiVersion
+                toFieldPath: status.exports[0].name
+                transforms:
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "connection"
+              - type: ToCompositeFieldPath
+                fromFieldPath: apiVersion
+                toFieldPath: status.exports[0].type
+                transforms:
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "Secret"
+              - type: ToCompositeFieldPath
+                fromFieldPath: apiVersion
+                toFieldPath: status.exports[0].location.provider
+                transforms:
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "AWSSecretsManager"
+              - type: ToCompositeFieldPath
+                fromFieldPath: spec.forProvider.manifest.spec.data[0].match.remoteRef.remoteKey
+                toFieldPath: status.exports[0].location.key
+              # Defaults ready=false first so the field is always present
+              # (the XRD requires it) even before the PushSecret has been
+              # observed; the real readiness patch below runs after and
+              # overwrites it once status.atProvider.manifest is populated.
+              - type: ToCompositeFieldPath
+                fromFieldPath: apiVersion
+                toFieldPath: status.exports[0].ready
+                transforms:
+                  - type: string
+                    string:
+                      type: Format
+                      fmt: "false"
+                  - type: convert
+                    convert:
+                      toType: bool
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.manifest.status.conditions[?(@.type=='Ready')].status
+                toFieldPath: status.exports[0].ready
+                transforms:
+                  - type: convert
+                    convert:
+                      toType: bool
+                policy:
+                  fromFieldPath: Optional
