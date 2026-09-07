@@ -426,9 +426,13 @@ spec:
               # for Database v1 (single "connection" export, always a Secret,
               # always published to AWS Secrets Manager) — sourced from this
               # resource's own always-present apiVersion field purely so the
-              # patch has a valid fromFieldPath; the Format transform's fixed
-              # (verb-less) fmt string discards that value and emits the
-              # literal instead. Same trick used for the ready-default below.
+              # patch has a valid fromFieldPath. Format is a real
+              # fmt.Sprintf(fmt, value) call, so a verb-less fmt string
+              # doesn't discard the value — it leaves it unconsumed and Go
+              # appends "%!(EXTRA ...)" to the output. %.0s is the fix: it
+              # consumes the arg (as fmt.Sprintf requires) but prints zero
+              # runes of it, so the output is exactly the literal prefix.
+              # Same trick used for the ready-default below.
               - type: ToCompositeFieldPath
                 fromFieldPath: apiVersion
                 toFieldPath: status.exports[0].name
@@ -436,7 +440,7 @@ spec:
                   - type: string
                     string:
                       type: Format
-                      fmt: "connection"
+                      fmt: "connection%.0s"
               - type: ToCompositeFieldPath
                 fromFieldPath: apiVersion
                 toFieldPath: status.exports[0].type
@@ -444,7 +448,7 @@ spec:
                   - type: string
                     string:
                       type: Format
-                      fmt: "Secret"
+                      fmt: "Secret%.0s"
               - type: ToCompositeFieldPath
                 fromFieldPath: apiVersion
                 toFieldPath: status.exports[0].location.provider
@@ -452,7 +456,7 @@ spec:
                   - type: string
                     string:
                       type: Format
-                      fmt: "AWSSecretsManager"
+                      fmt: "AWSSecretsManager%.0s"
               - type: ToCompositeFieldPath
                 fromFieldPath: spec.forProvider.manifest.spec.data[0].match.remoteRef.remoteKey
                 toFieldPath: status.exports[0].location.key
@@ -467,7 +471,7 @@ spec:
                   - type: string
                     string:
                       type: Format
-                      fmt: "false"
+                      fmt: "false%.0s"
                   - type: convert
                     convert:
                       toType: bool

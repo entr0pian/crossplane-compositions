@@ -2,7 +2,7 @@ apiVersion: database.taskapp.io/v1alpha1
 kind: Database
 metadata:
   name: checkout-db
-  namespace: default
+  namespace: dev
 spec:
   componentRef:
     name: checkout
