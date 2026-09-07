@@ -338,9 +338,20 @@ spec:
             # kubernetes' Object CRD) rather than the Object's own Synced/
             # Ready conditions, which would only prove the manifest was
             # applied, not that ESO actually published the remote secret.
+            # MatchString, not MatchCondition: function-patch-and-transform's
+            # MatchCondition reads o.GetCondition(...) — the composed
+            # resource's OWN top-level conditions — and ignores fieldPath
+            # entirely, so it can't reach into atProvider.manifest at all;
+            # it would silently check the Object wrapper's Ready/Synced
+            # (proves the manifest applied, not that ESO published the
+            # secret — the weaker signal this design deliberately avoids).
+            # MatchString does honor fieldPath (verified against the
+            # function's source), same as "instance"'s readinessCheck
+            # above. [0] not a filter expression — see the ready-patch
+            # comment below for why.
             readinessChecks:
               - type: MatchString
-                fieldPath: status.atProvider.manifest.status.conditions[?(@.type=='Ready')].status
+                fieldPath: status.atProvider.manifest.status.conditions[0].status
                 matchString: "True"
             patches:
               - type: PatchSet
@@ -475,8 +486,15 @@ spec:
                   - type: convert
                     convert:
                       toType: bool
+              # No filter-expression support in fromFieldPath (see the
+              # readinessChecks comment above) and no MatchCondition
+              # equivalent for patches, so this indexes [0] directly —
+              # safe only because PushSecret's status.conditions has been
+              # observed (both erroring and succeeding) to always contain
+              # exactly one entry, type Ready. Revisit if ESO's PushSecret
+              # ever reports additional condition types.
               - type: ToCompositeFieldPath
-                fromFieldPath: status.atProvider.manifest.status.conditions[?(@.type=='Ready')].status
+                fromFieldPath: status.atProvider.manifest.status.conditions[0].status
                 toFieldPath: status.exports[0].ready
                 transforms:
                   - type: convert
