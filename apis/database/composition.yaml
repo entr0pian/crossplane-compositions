@@ -332,32 +332,17 @@ spec:
                       selector:
                         secret:
                           name: placeholder
+                      # Whole Secret as one JSON value, one write per reconcile.
+                      # Not one entry per key: ESO 0.14's AWS provider writes
+                      # each property as its own secret version and collides on
+                      # its version token (ResourceExistsException on
+                      # ClientRequestToken), leaving the binding missing keys.
+                      # The source Secret holds exactly the binding keys
+                      # (endpoint, port, username, password, dbname).
                       data:
                         - match:
-                            secretKey: endpoint
                             remoteRef:
                               remoteKey: placeholder
-                              property: endpoint
-                        - match:
-                            secretKey: port
-                            remoteRef:
-                              remoteKey: placeholder
-                              property: port
-                        - match:
-                            secretKey: username
-                            remoteRef:
-                              remoteKey: placeholder
-                              property: username
-                        - match:
-                            secretKey: password
-                            remoteRef:
-                              remoteKey: placeholder
-                              property: password
-                        - match:
-                            secretKey: dbname
-                            remoteRef:
-                              remoteKey: placeholder
-                              property: dbname
             # readinessChecks read the *wrapped* PushSecret's own live status
             # (status.atProvider.manifest mirrors the full remote object,
             # subresource status included — verified against provider-
@@ -410,10 +395,7 @@ spec:
                       type: Format
                       fmt: "%s-database-connection-details"
               # Remote path is deterministic — /bindings/<namespace>/databases/<name> —
-              # per SERVICE_BINDINGS.md §3. Repeated once per data[] entry, same
-              # convention as the repeated namespace/name patches on connection-secret's
-              # spec.references above, since function-patch-and-transform patches
-              # target one field path each.
+              # per SERVICE_BINDINGS.md §3.
               - type: CombineFromComposite
                 combine:
                   variables:
@@ -423,42 +405,6 @@ spec:
                   string:
                     fmt: "/bindings/%s/databases/%s"
                 toFieldPath: spec.forProvider.manifest.spec.data[0].match.remoteRef.remoteKey
-              - type: CombineFromComposite
-                combine:
-                  variables:
-                    - fromFieldPath: metadata.namespace
-                    - fromFieldPath: metadata.name
-                  strategy: string
-                  string:
-                    fmt: "/bindings/%s/databases/%s"
-                toFieldPath: spec.forProvider.manifest.spec.data[1].match.remoteRef.remoteKey
-              - type: CombineFromComposite
-                combine:
-                  variables:
-                    - fromFieldPath: metadata.namespace
-                    - fromFieldPath: metadata.name
-                  strategy: string
-                  string:
-                    fmt: "/bindings/%s/databases/%s"
-                toFieldPath: spec.forProvider.manifest.spec.data[2].match.remoteRef.remoteKey
-              - type: CombineFromComposite
-                combine:
-                  variables:
-                    - fromFieldPath: metadata.namespace
-                    - fromFieldPath: metadata.name
-                  strategy: string
-                  string:
-                    fmt: "/bindings/%s/databases/%s"
-                toFieldPath: spec.forProvider.manifest.spec.data[3].match.remoteRef.remoteKey
-              - type: CombineFromComposite
-                combine:
-                  variables:
-                    - fromFieldPath: metadata.namespace
-                    - fromFieldPath: metadata.name
-                  strategy: string
-                  string:
-                    fmt: "/bindings/%s/databases/%s"
-                toFieldPath: spec.forProvider.manifest.spec.data[4].match.remoteRef.remoteKey
               # Static export metadata: name/type/location.provider never vary
               # for Database v1 (single "connection" export, always a Secret,
               # always published to AWS Secrets Manager) — sourced from this
