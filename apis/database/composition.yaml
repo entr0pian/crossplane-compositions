@@ -474,3 +474,22 @@ spec:
                       toType: bool
                 policy:
                   fromFieldPath: Optional
+
+    # Hold the PushSecret back until the connection Secret it publishes
+    # exists. patch-and-transform renders every resource at once, but the
+    # connection Secret only appears once RDS is ready (~5 min). Created
+    # early, the PushSecret fails in the meantime and ESO's exponential
+    # retry backoff then delays the first successful publish by minutes.
+    # Created after, ESO's first attempt succeeds. resetCompositeReadiness
+    # keeps the Database from reporting Ready while the PushSecret is held.
+    - step: sequence-binding
+      functionRef:
+        name: crossplane-contrib-function-sequencer
+      input:
+        apiVersion: sequencer.fn.crossplane.io/v1beta1
+        kind: Input
+        resetCompositeReadiness: true
+        rules:
+          - sequence:
+              - connection-secret
+              - push-secret
