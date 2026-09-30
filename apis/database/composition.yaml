@@ -36,8 +36,17 @@ spec:
             patches:
               - type: PatchSet
                 patchSetName: common
-              - type: FromCompositeFieldPath
-                fromFieldPath: metadata.name
+              # AWS names are account+region-wide, XR names only namespace-wide:
+              # prefix with the namespace (= environment) so dev/payments-db and
+              # management/payments-db don't claim the same AWS objects.
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: metadata.namespace
+                    - fromFieldPath: metadata.name
+                  strategy: string
+                  string:
+                    fmt: "%s-%s"
                 toFieldPath: spec.forProvider.name
 
           - name: security-group-rule
@@ -80,6 +89,17 @@ spec:
             patches:
               - type: PatchSet
                 patchSetName: common
+              # The subnet group's AWS name is its external name, which otherwise
+              # defaults to metadata.name - and silently adopts an existing group.
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: metadata.namespace
+                    - fromFieldPath: metadata.name
+                  strategy: string
+                  string:
+                    fmt: "%s-%s"
+                toFieldPath: metadata.annotations[crossplane.io/external-name]
 
           - name: instance
             base:
@@ -111,8 +131,14 @@ spec:
             patches:
               - type: PatchSet
                 patchSetName: common
-              - type: FromCompositeFieldPath
-                fromFieldPath: metadata.name
+              - type: CombineFromComposite
+                combine:
+                  variables:
+                    - fromFieldPath: metadata.namespace
+                    - fromFieldPath: metadata.name
+                  strategy: string
+                  string:
+                    fmt: "%s-%s"
                 toFieldPath: spec.forProvider.identifier
               - type: FromCompositeFieldPath
                 fromFieldPath: metadata.name
