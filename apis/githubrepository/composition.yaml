@@ -45,3 +45,39 @@ spec:
               - type: ToCompositeFieldPath
                 fromFieldPath: status.atProvider.htmlUrl
                 toFieldPath: status.repoURL
+          # Push webhook to ArgoCD on management, so a push to this repo
+          # refreshes its Applications within seconds instead of on the next
+          # poll. The URL and HMAC secret come from the ESO-managed Secret
+          # argocd-github-webhook in the XR's namespace (helm-charts/platform);
+          # Secret refs here are {name, key} only, resolved in the MR's own
+          # namespace. matchControllerRef resolves to the Repository above, by
+          # its external name (the bare repo name; the owner comes from the
+          # provider credentials), and retries until it exists.
+          # readinessChecks None: the webhook is an optimization over
+          # polling, so a missing Secret or webhook error must never hold the
+          # XR (and through it component-operator's ScaffoldRequest) unready.
+          - name: argocd-webhook
+            base:
+              apiVersion: repo.github.m.upbound.io/v1alpha1
+              kind: RepositoryWebhook
+              spec:
+                forProvider:
+                  repositorySelector:
+                    matchControllerRef: true
+                  active: true
+                  events:
+                    - push
+                  configuration:
+                    - contentType: json
+                      insecureSsl: false
+                      urlSecretRef:
+                        name: argocd-github-webhook
+                        key: url
+                      secretSecretRef:
+                        name: argocd-github-webhook
+                        key: secret
+                providerConfigRef:
+                  kind: ClusterProviderConfig
+                  name: default
+            readinessChecks:
+              - type: None
