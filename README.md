@@ -1,109 +1,118 @@
 # crossplane-compositions
 
-Source-of-truth repo for Crossplane `Configuration` packages, built and published as OCI
-artifacts to GHCR instead of applied as raw YAML through Helm/Argo CD:
+The platform's infrastructure APIs, written as Crossplane compositions and
+released as one versioned OCI package. A developer, or a platform operator,
+asks for a small namespaced resource. Crossplane turns it into real GitHub or
+AWS resources.
 
-```
-GitHub repo → GitHub Actions → GHCR → Argo CD (Configuration CR) → Crossplane
-```
+| API | Asks for | Becomes |
+|---|---|---|
+| `GitHubRepository` (`repo.taskapp.io/v1alpha1`) | a repository for a component | a GitHub repository, plus a push webhook to Argo CD |
+| `Database` (`database.taskapp.io/v1alpha1`) | Postgres for a component in an environment | an RDS instance, with its connection details published to AWS Secrets Manager |
 
-Argo CD's role shrinks to applying one small `Configuration` CR per package; Crossplane's
-own package manager pulls, versions, and resolves the `dependsOn` providers/functions
-declared in `crossplane.yaml`.
+## Where it fits
 
-This repo is meant to grow to hold all compositions over time. It holds two packages so
-far, below; the legacy SQS composition (`helm-charts/crossplane-compositions`, built on
-Crossplane 1.x cluster-scoped resources) stays where it is — disabled — until it's
-reworked for the namespaced-XR model and moved in here. The RDS composition that used to
-live there has already been reworked and moved in as `apis/database`.
-
-## Packages
-
-### `apis/githubrepository` — `GitHubRepository`
-
-Namespaced XR (`repo.taskapp.io/v1alpha1 GitHubRepository`) that composes a
-`repo.github.m.upbound.io/v1alpha1 Repository` via `crossplane-contrib/provider-upjet-github`.
-
-Provider credentials are wired up separately, outside this repo: `helm-charts/crossplane-provider-config`
-applies the `github.upbound.io` `ProviderConfig` (gated by its own `github.enabled` toggle),
-referencing a dedicated `crossplane-github-credentials` Secret delivered via ESO from
-`taskapp/platform/crossplane-github-token` in AWS Secrets Manager (see
-`helm-charts/platform`'s `crossplaneGithub.secretPath`). This package only depends on the
-provider being installed — it doesn't carry or apply any credentials itself.
-
-### `apis/database` — `Database`
-
-Namespaced XR (`database.taskapp.io/v1alpha1 Database`) that provisions a Postgres RDS
-instance (security group, subnet group, instance, and a republished connection Secret)
-via `provider-aws-ec2`/`provider-aws-rds`, plus a `provider-kubernetes` `Object` that
-republishes the connection details into the `Database`'s own namespace.
-
-This is a new, deliberately small API — not a straight port of the legacy
-`XRDSInstance`/`RDSInstance` schema in `helm-charts/crossplane-compositions`. Callers set
-only `spec.componentRef.name`, `spec.dbName`, and an optional `spec.size`
-(`small`/`medium`/`large`, default `small`) — region, VPC, subnets, engine, and instance
-class are fixed by the composition rather than caller-settable, resolved from `size` via
-a `map` transform. See `platform-architecture/RUNTIME_DEPENDENCIES.md` for the full
-Database Connection Secret Contract this package implements:
-`status.connectionSecretRef` always points at a Secret, in the `Database`'s own
-namespace, with exactly the keys `endpoint`/`port`/`username`/`password`/`dbname` — never
-a name a consumer reconstructs itself.
-
-Provider credentials are wired up the same way as `apis/githubrepository`'s, outside this
-repo: `helm-charts/crossplane-provider-config` applies the `aws.upbound.io` and
-`kubernetes.crossplane.io` `ProviderConfig`s (gated by their own `aws.enabled` /
-`kubernetes.enabled` toggles).
-
-## Delivery model
-
-This repo only builds and releases the OCI `Configuration` package — it does not decide
-where or when that package gets installed. That split is deliberate:
-
-```
-crossplane-compositions   → WHAT CAN BE RELEASED (this repo)
-application-repositories  → WHAT VERSION SHOULD RUN WHERE
-argocd                    → HOW THAT DESIRED STATE IS DELIVERED
+```mermaid
+flowchart LR
+    REPO[("crossplane-compositions")] -->|"tag v*: CI builds"| GHCR[("GHCR<br/>OCI package")]
+    AR[("application-repositories<br/>packages/…/&lt;env&gt;.yaml<br/>version: v0.4.6")] -->|Argo CD| CFG["Configuration"]
+    GHCR -->|pull| CFG
+    CFG --> XP["Crossplane<br/>on management"]
+    CO["component-operator"] -->|GitHubRepository| XP
+    DB["Database<br/>(Backstage PR)"] --> XP
+    XP --> GH[("GitHub")]
+    XP --> AWS[("RDS<br/>Secrets Manager")]
 ```
 
-Publishing a new version here never deploys it anywhere by itself. A cluster only picks
-up a new version when `application-repositories`' `packages/crossplane-compositions/<env>.yaml`
-is updated to reference it — see that repo's README for the package contract shape, and
-`argocd`'s `taskapp-packages` ApplicationSet for how it's installed.
+The delivery has three parts, each in its own repo:
 
-### `charts/configuration-installer/`
+```
+crossplane-compositions   → what can be released   (this repo, OCI packages)
+application-repositories  → which version runs where (one file per environment)
+argocd                    → how it's delivered      (the taskapp-packages ApplicationSet)
+```
 
-A tiny installer-adapter Helm chart, versioned and released independently of the
-`Configuration` package itself. It converts generic values (`name`, `package.repository`,
-`package.version`, `pullPolicy`) into a single `pkg.crossplane.io/v1 Configuration`
-resource — nothing else. It intentionally contains no XRDs or Compositions; those only
-ever ship inside the OCI package built from this repo's `apis/`.
+Publishing a new version deploys nothing. An environment moves to it only
+when its file in
+[application-repositories](https://github.com/entr0pian/application-repositories)
+changes `version`.
+
+## `GitHubRepository`
+
+Created and owned by [component-operator](https://github.com/entr0pian/component-operator)
+for every `Component`. It composes, through `provider-upjet-github`:
+
+- **`Repository`** with the requested name and visibility, created with an
+  initial commit so [scaffold-operator](https://github.com/entr0pian/scaffold-operator)
+  can write the scaffold on top.
+- **`RepositoryWebhook`** to Argo CD, so a push to the new repository syncs
+  within seconds. It doesn't count towards readiness: the webhook only speeds
+  things up over polling, so it must never block scaffolding.
+
+## `Database`
+
+```yaml
+apiVersion: database.taskapp.io/v1alpha1
+kind: Database
+metadata:
+  name: payments-db
+  namespace: dev               # the environment
+spec:
+  componentRef: {name: payments}
+  dbName: paymentsdb
+  size: small                  # small | medium | large
+status:
+  exports:
+    - name: connection
+      type: Secret
+      location: {provider: aws-secrets-manager, key: /bindings/dev/databases/payments-db}
+      ready: true
+```
+
+Callers choose only the component, the database name and a size. Region, VPC,
+engine and instance class are fixed by the composition. It composes a security
+group and rule, a subnet group, the RDS instance, and, through
+`provider-kubernetes`, a connection Secret plus an External Secrets
+`PushSecret` that publishes it to Secrets Manager at a deterministic path.
+
+The database doesn't decide who may use it. A `Release` binds it, and
+[release-operator](https://github.com/entr0pian/release-operator) writes only
+the Secrets Manager path into the service's values. The service's chart then
+reads the credentials with its own ExternalSecret on the workload cluster, so
+credentials never pass through Git or the operators.
+
+## Design choices
+
+- **Packages, not raw YAML.** Crossplane's package manager versions the APIs and
+  resolves their providers and functions from `crossplane.yaml`. Argo CD
+  applies one small `Configuration` per environment, through the
+  `charts/configuration-installer` chart.
+- **Small, opinionated APIs.** `size` maps to an instance class inside the
+  composition. Exposing every RDS field would push infrastructure decisions
+  back to developers.
+- **Producers publish, consumers bind.** `Database.status.exports` says where
+  its connection details live. A `Release` decides which service gets them.
+- **Namespace-prefixed AWS names.** XR names are unique per namespace, AWS names
+  per account. Prefixing with the namespace lets `dev/payments-db` and
+  `prod/payments-db` coexist.
 
 ## Releasing
 
-Releases are triggered by pushing a Git tag matching `v*` — the tag becomes the OCI tag
-directly:
+Push a tag `v*`, and `release.yaml` builds the package and pushes
+`ghcr.io/entr0pian/crossplane-compositions:<tag>`. `validate.yaml` builds the
+package and lints the installer chart on every pull request. Provider
+credentials come from `crossplane-provider-config` in
+[helm-charts](https://github.com/entr0pian/helm-charts), not from this package.
 
-```
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-`.github/workflows/release.yaml` then builds the package and pushes
-`ghcr.io/entr0pian/crossplane-compositions:v0.1.0` (plus a floating `:latest` alias, for
-convenience only — `application-repositories` always references the immutable version,
-never `:latest`). `.github/workflows/validate.yaml` runs on every PR that touches
-`crossplane.yaml`, `apis/**`, or the installer chart — it builds the package and lints
-the chart, but never logs in to GHCR or pushes anything.
-
-## Building locally
-
-```
-crossplane xpkg build --package-root=. --examples-root=examples --package-file=crossplane-compositions.xpkg --ignore="charts/configuration-installer/Chart.yaml,charts/configuration-installer/values.yaml,charts/configuration-installer/templates/configuration.yaml,.github/workflows/validate.yaml,.github/workflows/release.yaml"
+```sh
+git tag v0.4.7 && git push origin v0.4.7
 ```
 
-(The `crossplane` CLI's `--ignore` flag doesn't support recursive globs like
-`charts/**` — list exact file paths instead.)
+To build locally (the `crossplane` CLI's `--ignore` doesn't support recursive
+globs, so the non-package files are listed one by one):
 
-GHCR packages default to private on first push — flip the package's visibility to
-public in GitHub package settings after the first successful release, since Argo CD
-doesn't need a `packagePullSecret` for this.
+```sh
+crossplane xpkg build --package-root=. --examples-root=examples \
+  --package-file=crossplane-compositions.xpkg \
+  --ignore="charts/configuration-installer/Chart.yaml,charts/configuration-installer/values.yaml,charts/configuration-installer/templates/configuration.yaml,.github/workflows/validate.yaml,.github/workflows/release.yaml"
+```
