@@ -312,6 +312,14 @@ spec:
               apiVersion: kubernetes.m.crossplane.io/v1alpha1
               kind: Object
               spec:
+                # Watch the PushSecret so ESO's status change refreshes
+                # status.atProvider.manifest (read by readinessChecks below)
+                # immediately. Without it, the copy is only refreshed on
+                # provider-kubernetes' 10m poll, holding the Database
+                # not-Ready for ~10 min after the binding is already
+                # published. Alpha field, but provider-kubernetes enables
+                # its watches feature gate by default.
+                watch: true
                 providerConfigRef:
                   kind: ClusterProviderConfig
                   name: default
